@@ -63,7 +63,7 @@ type GinJWTMiddleware struct {
 	Unauthorized func(*gin.Context, int, string)
 
 	// User can define own LoginResponse func.
-	LoginResponse func(*gin.Context, int, string, time.Time)
+	LoginResponse func(*gin.Context, int, string, time.Time) map[string]interface{}
 
 	// User can define own RefreshResponse func.
 	RefreshResponse func(*gin.Context, int, string, time.Time)
@@ -284,13 +284,13 @@ func (mw *GinJWTMiddleware) MiddlewareInit() error {
 	}
 
 	if mw.LoginResponse == nil {
-		mw.LoginResponse = func(c *gin.Context, code int, token string, expire time.Time) {
+		/*mw.LoginResponse = func(c *gin.Context, code int, token string, expire time.Time) string {
 			c.JSON(http.StatusOK, gin.H{
 				"code":   http.StatusOK,
 				"token":  token,
 				"expire": expire.Format(time.RFC3339),
 			})
-		}
+		}*/
 	}
 
 	if mw.RefreshResponse == nil {
@@ -407,17 +407,18 @@ func (mw *GinJWTMiddleware) GetClaimsFromJWT(c *gin.Context) (MapClaims, error) 
 // LoginHandler can be used by clients to get a jwt token.
 // Payload needs to be json in the form of {"username": "USERNAME", "password": "PASSWORD"}.
 // Reply will be of the form {"token": "TOKEN"}.
-func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
+func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) map[string]interface{} {
+	var tokenBody map[string]interface{}
 	if mw.Authenticator == nil {
 		mw.unauthorized(c, http.StatusInternalServerError, mw.HTTPStatusMessageFunc(ErrMissingAuthenticatorFunc, c))
-		return
+		return tokenBody
 	}
 
 	data, err := mw.Authenticator(c)
 
 	if err != nil {
 		mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(err, c))
-		return
+		return tokenBody
 	}
 
 	// Create the token
@@ -437,7 +438,7 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 
 	if err != nil {
 		mw.unauthorized(c, http.StatusUnauthorized, mw.HTTPStatusMessageFunc(ErrFailedTokenCreation, c))
-		return
+		return tokenBody
 	}
 
 	// set cookie
@@ -453,8 +454,8 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 			mw.CookieHTTPOnly,
 		)
 	}
-
-	mw.LoginResponse(c, http.StatusOK, tokenString, expire)
+	tokenBody = mw.LoginResponse(c, http.StatusOK, tokenString, expire)
+	return tokenBody
 }
 
 func (mw *GinJWTMiddleware) signedString(token *jwt.Token) (string, error) {
